@@ -24,13 +24,15 @@ Running locally
 npm install
 ```
 
-2. Start the dev server:
+2. Start the dev server (recommended):
 
 ```bash
+npm start
+# or
 npm run dev
 ```
 
-3. Open the app in your browser: http://localhost:3000/
+3. Open the app in your browser: http://localhost:5173/ (default Vite dev port) or check the terminal for the exact local URL.
 
 Project structure (selected files)
 - `App.tsx` — main entry and app layout

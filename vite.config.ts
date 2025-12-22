@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
+      base: './',
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -14,6 +15,7 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'autoUpdate',
+          devOptions: { enabled: false },
           includeAssets: ['favicon.svg', 'robots.txt', 'icons/*'],
           manifest: {
             name: 'GID — Get It Done',
