@@ -16,6 +16,8 @@ interface SidebarProps {
   onToggleDarkMode: () => void;
   onSync: () => void;
   isSyncing: boolean;
+  onInstall?: () => void;
+  canInstall?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -30,7 +32,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   darkMode,
   onToggleDarkMode,
   onSync,
-  isSyncing
+  isSyncing,
+  onInstall,
+  canInstall
 }) => {
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   
@@ -70,6 +74,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 {darkMode ? '☀️' : '🌙'}
               </button>
+
+              {/* Install PWA */}
+              {onInstall && (
+                <button onClick={onInstall} title="Install App" disabled={!canInstall} className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                  ⤓
+                </button>
+              )}
             </div>
           </div>
 

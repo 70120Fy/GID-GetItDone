@@ -5,7 +5,6 @@ import { loadPages, savePages, getDBBlob } from './utils/storage';
 import { initDrive, signInToDrive, uploadToDrive } from './utils/drive';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
-import { GeminiAssistant } from './components/GeminiAssistant';
 import { TEMPLATES } from './utils/templates';
 
 const App: React.FC = () => {
@@ -17,6 +16,53 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('gid_theme') === 'dark';
   });
+  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // handle beforeinstallprompt to show install button
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler as EventListener);
+    return () => window.removeEventListener('beforeinstallprompt', handler as EventListener);
+  }, []);
+
+  // listen for SW update events emitted from index.tsx
+  useEffect(() => {
+    const onUpdate = () => setUpdateAvailable(true);
+    const onOfflineReady = () => console.log('Offline ready');
+    window.addEventListener('sw-update', onUpdate);
+    window.addEventListener('sw-offline-ready', onOfflineReady);
+    return () => {
+      window.removeEventListener('sw-update', onUpdate);
+      window.removeEventListener('sw-offline-ready', onOfflineReady);
+    };
+  }, []);
+
+  const promptInstall = async () => {
+    if (!deferredPrompt) return;
+    (deferredPrompt as any).prompt?.();
+    const choice = await (deferredPrompt as any).userChoice;
+    setDeferredPrompt(null);
+    setCanInstall(false);
+    if (choice && choice.outcome === 'accepted') {
+      console.log('User accepted install');
+    }
+  };
+
+  const applyUpdate = async () => {
+    const updater = (window as any).__updatePWA;
+    if (typeof updater === 'function') {
+      // ask SW to skip waiting and then reload
+      await updater(true);
+    } else {
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -110,7 +156,10 @@ const App: React.FC = () => {
     try {
       await signInToDrive();
       const blob = await getDBBlob();
-      await uploadToDrive(blob);
+      // convert Blob to Uint8Array expected by uploadToDrive
+      const buffer = await blob.arrayBuffer();
+      const uint8 = new Uint8Array(buffer);
+      await uploadToDrive(uint8);
       alert("Successfully synced to Google Drive.");
     } catch (e) {
       console.error(e);
@@ -133,6 +182,15 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 selection:bg-black dark:selection:bg-white selection:text-white dark:selection:text-black">
+
+      {/* Update banner */}
+      {updateAvailable && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-[#4A90E2] text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-4">
+          <span className="font-bold">Nouvelle version disponible</span>
+          <button onClick={applyUpdate} className="bg-white text-[#4A90E2] px-3 py-1 rounded-md font-semibold">Mettre à jour</button>
+        </div>
+      )}
+
       <Sidebar 
         pages={pages}
         activePageId={activePageId}
@@ -146,6 +204,8 @@ const App: React.FC = () => {
         onToggleDarkMode={() => setDarkMode(!darkMode)}
         onSync={handleSyncToDrive}
         isSyncing={isSyncing}
+        onInstall={promptInstall}
+        canInstall={canInstall}
       />
 
       <main className="flex-1 overflow-y-auto h-full relative lg:ml-72 scroll-smooth">
@@ -168,7 +228,6 @@ const App: React.FC = () => {
               page={activePage}
               onUpdate={handleUpdatePage}
             />
-            <GeminiAssistant page={activePage} onInsertBlocks={handleInsertBlocks} />
           </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full">

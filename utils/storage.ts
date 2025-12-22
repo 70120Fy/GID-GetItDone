@@ -1,122 +1,151 @@
 
 import { Page, Block } from '../types';
+import { openDatabase, getObjectStore, promisifyRequest } from './idb';
 
-let db: any = null;
-const SQL_PATH = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm';
+const DB_NAME = 'gid_db_v1';
+const DB_VERSION = 1;
 
-const initDB = async () => {
-  if (db) return db;
-  const initSqlJs = (window as any).initSqlJs;
-  const SQL = await initSqlJs({ locateFile: () => SQL_PATH });
-  
-  const savedDB = localStorage.getItem('gid_sqlite_db');
-  if (savedDB) {
-    const u8 = new Uint8Array(atob(savedDB).split('').map(c => c.charCodeAt(0)));
-    db = new SQL.Database(u8);
-  } else {
-    db = new SQL.Database();
-    db.run(`
-      CREATE TABLE IF NOT EXISTS pages (
-        id TEXT PRIMARY KEY,
-        title TEXT,
-        updatedAt INTEGER
-      );
-      CREATE TABLE IF NOT EXISTS blocks (
-        id TEXT PRIMARY KEY,
-        pageId TEXT,
-        type TEXT,
-        content TEXT,
-        checked INTEGER,
-        schedule TEXT,
-        lastEditedAt INTEGER,
-        metadata TEXT,
-        sortOrder INTEGER,
-        FOREIGN KEY(pageId) REFERENCES pages(id) ON DELETE CASCADE
-      );
-    `);
+const migrations = [
+  (db: IDBDatabase) => {
+    if (!db.objectStoreNames.contains('pages')) {
+      const pages = db.createObjectStore('pages', { keyPath: 'id' });
+      pages.createIndex('updatedAt', 'updatedAt');
+    }
+    if (!db.objectStoreNames.contains('blocks')) {
+      const blocks = db.createObjectStore('blocks', { keyPath: 'id' });
+      blocks.createIndex('pageId', 'pageId');
+    }
+    if (!db.objectStoreNames.contains('meta')) {
+      db.createObjectStore('meta', { keyPath: 'key' });
+    }
   }
-  return db;
-};
+];
 
-const persistDB = () => {
-  if (!db) return;
-  const data = db.export();
-  const base64 = btoa(String.fromCharCode(...data));
-  localStorage.setItem('gid_sqlite_db', base64);
-};
+let cachedDB: IDBDatabase | null = null;
+
+async function getDB() {
+  if (cachedDB) return cachedDB;
+  cachedDB = await openDatabase(DB_NAME, DB_VERSION, migrations);
+  return cachedDB;
+}
 
 export const savePages = async (pages: Page[]) => {
-  const database = await initDB();
-  database.run("DELETE FROM blocks");
-  database.run("DELETE FROM pages");
+  const db = await getDB();
+  const { store, tx } = getObjectStore(db, 'pages', 'readwrite');
+  const blockStore = db.transaction('blocks', 'readwrite').objectStore('blocks');
 
-  const insertPage = database.prepare("INSERT INTO pages (id, title, updatedAt) VALUES (?, ?, ?)");
-  const insertBlock = database.prepare("INSERT INTO blocks (id, pageId, type, content, checked, schedule, lastEditedAt, metadata, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  // clear and repopulate (simple migration-friendly approach)
+  const clearPagesReq = store.clear();
+  const clearBlocksReq = blockStore.clear();
+  await Promise.all([promisifyRequest(clearPagesReq), promisifyRequest(clearBlocksReq)]);
 
   for (const page of pages) {
-    insertPage.run([page.id, page.title, page.updatedAt]);
-    page.blocks.forEach((block, index) => {
-      insertBlock.run([
-        block.id,
-        page.id,
-        block.type,
-        block.content,
-        block.checked ? 1 : 0,
-        block.schedule || null,
-        block.lastEditedAt || Date.now(),
-        JSON.stringify(block.metadata || {}),
-        index
-      ]);
-    });
+    store.add({ id: page.id, title: page.title, updatedAt: page.updatedAt });
+    for (let i = 0; i < page.blocks.length; i++) {
+      const block = page.blocks[i];
+      blockStore.add({
+        id: block.id,
+        pageId: page.id,
+        type: block.type,
+        content: block.content,
+        checked: !!block.checked,
+        schedule: block.schedule || null,
+        lastEditedAt: block.lastEditedAt || Date.now(),
+        metadata: block.metadata || {},
+        sortOrder: i
+      });
+    }
   }
-  insertPage.free();
-  insertBlock.free();
-  persistDB();
+
+  // wait for tx complete
+  await promisifyRequest(tx);
 };
 
 export const loadPages = async (): Promise<Page[]> => {
-  const database = await initDB();
+  const db = await getDB();
   const pages: Page[] = [];
-  
-  try {
-    const resPages = database.exec("SELECT * FROM pages ORDER BY updatedAt DESC");
-    if (resPages.length === 0) return [];
+  const { store, tx } = getObjectStore(db, 'pages', 'readonly');
 
-    const pageRows = resPages[0].values;
-    for (const pRow of pageRows) {
-      const pageId = pRow[0] as string;
-      const resBlocks = database.exec(`SELECT * FROM blocks WHERE pageId = '${pageId}' ORDER BY sortOrder ASC`);
-      const blocks: Block[] = [];
-      
-      if (resBlocks.length > 0) {
-        resBlocks[0].values.forEach((bRow: any) => {
-          blocks.push({
-            id: bRow[0],
-            type: bRow[2],
-            content: bRow[3],
-            checked: bRow[4] === 1,
-            schedule: bRow[5],
-            lastEditedAt: bRow[6],
-            metadata: JSON.parse(bRow[7] || '{}')
-          });
-        });
-      }
+  const getAllReq = store.getAll();
+  const pageList = await promisifyRequest(getAllReq) as any[];
 
-      pages.push({
-        id: pageId,
-        title: pRow[1] as string,
-        updatedAt: pRow[2] as number,
-        blocks
-      });
-    }
-  } catch (e) {
-    console.error("Storage load error", e);
+  // load blocks per page via index
+  for (const p of pageList.sort((a, b) => b.updatedAt - a.updatedAt)) {
+    const blocksStore = db.transaction('blocks', 'readonly').objectStore('blocks');
+    const idx = blocksStore.index('pageId');
+    const range = IDBKeyRange.only(p.id);
+    const req = idx.getAll(range);
+    const blockRows = await promisifyRequest(req) as any[];
+    const blocks: Block[] = blockRows.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map(b => ({
+      id: b.id,
+      type: b.type,
+      content: b.content,
+      checked: !!b.checked,
+      schedule: b.schedule,
+      lastEditedAt: b.lastEditedAt,
+      metadata: b.metadata || {}
+    }));
+
+    pages.push({ id: p.id, title: p.title, updatedAt: p.updatedAt, blocks });
   }
-  
+
+  await promisifyRequest(tx);
   return pages;
 };
 
-export const getDBBlob = async () => {
-  const database = await initDB();
-  return database.export();
+// CRUD helpers
+export const createPage = async (page: Page) => {
+  const db = await getDB();
+  const { store, tx } = getObjectStore(db, 'pages', 'readwrite');
+  store.add(page);
+  await promisifyRequest(tx);
 };
+
+export const updatePage = async (page: Page) => {
+  const db = await getDB();
+  const { store, tx } = getObjectStore(db, 'pages', 'readwrite');
+  store.put({ id: page.id, title: page.title, updatedAt: page.updatedAt });
+
+  // update blocks: simple approach remove existing for page and add new
+  const btx = db.transaction('blocks', 'readwrite');
+  const bstore = btx.objectStore('blocks');
+  const idx = bstore.index('pageId');
+  const existingReq = idx.getAllKeys(IDBKeyRange.only(page.id));
+  const keys = await promisifyRequest(existingReq) as any[];
+  for (const k of keys) bstore.delete(k);
+  for (let i = 0; i < page.blocks.length; i++) {
+    const block = page.blocks[i];
+    bstore.add({
+      id: block.id,
+      pageId: page.id,
+      type: block.type,
+      content: block.content,
+      checked: !!block.checked,
+      schedule: block.schedule || null,
+      lastEditedAt: block.lastEditedAt || Date.now(),
+      metadata: block.metadata || {},
+      sortOrder: i
+    });
+  }
+
+  await Promise.all([promisifyRequest(tx), promisifyRequest(btx)]);
+};
+
+export const deletePage = async (pageId: string) => {
+  const db = await getDB();
+  const ptx = db.transaction('pages', 'readwrite');
+  ptx.objectStore('pages').delete(pageId);
+  const btx = db.transaction('blocks', 'readwrite');
+  const idx = btx.objectStore('blocks').index('pageId');
+  const keys = await promisifyRequest(idx.getAllKeys(IDBKeyRange.only(pageId))) as any[];
+  for (const k of keys) btx.objectStore('blocks').delete(k);
+  await Promise.all([promisifyRequest(ptx), promisifyRequest(btx)]);
+};
+
+export const getDBBlob = async () => {
+  // export entire DB as JSON for backup
+  const db = await getDB();
+  const pages = await loadPages();
+  return new Blob([JSON.stringify({ pages, exportedAt: Date.now() })], { type: 'application/json' });
+};
+
