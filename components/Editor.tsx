@@ -1,9 +1,9 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Page, Block, BlockType, KanbanData, DatabaseData, MindMapNode } from '../types';
 import { BlockItem } from './BlockItem';
 import { CommandMenu } from './CommandMenu';
 import { TEMPLATES } from '../utils/templates';
+import { GeminiAssistant } from './GeminiAssistant';
 
 interface EditorProps {
   page: Page;
@@ -19,6 +19,18 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [sessionStartTime] = useState(Date.now());
   const editorRef = useRef<HTMLDivElement>(null);
+
+  // Secondary Dark Mode toggle within the editor context
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('gid_theme') === 'dark');
+  
+  const toggleDarkMode = () => {
+    const newVal = !darkMode;
+    setDarkMode(newVal);
+    document.documentElement.classList.toggle('dark', newVal);
+    localStorage.setItem('gid_theme', newVal ? 'dark' : 'light');
+    // Dispatch custom event to sync with App state if needed
+    window.dispatchEvent(new Event('storage'));
+  };
 
   const updateBlocks = useCallback((blocks: Block[]) => {
     onUpdate({ ...page, blocks, updatedAt: Date.now() });
@@ -44,44 +56,8 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
     }
   };
 
-  const deleteSelectedBlocks = useCallback(() => {
-    if (selectedBlockIds.size === 0 && focusedBlockId) {
-      const newBlocks = page.blocks.filter(b => b.id !== focusedBlockId);
-      updateBlocks(newBlocks.length > 0 ? newBlocks : [{ id: 'init', type: 'text', content: '', lastEditedAt: Date.now() }]);
-      setFocusedBlockId(null);
-      return;
-    }
-    
-    const newBlocks = page.blocks.filter(b => !selectedBlockIds.has(b.id));
-    updateBlocks(newBlocks.length > 0 ? newBlocks : [{ id: 'init', type: 'text', content: '', lastEditedAt: Date.now() }]);
-    setSelectedBlockIds(new Set());
-    setFocusedBlockId(null);
-  }, [selectedBlockIds, focusedBlockId, page.blocks, updateBlocks]);
-
   const handleKeyDown = (e: React.KeyboardEvent, block: Block) => {
     const index = page.blocks.findIndex(b => b.id === block.id);
-
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-      const target = e.target as HTMLTextAreaElement;
-      if (target && target.tagName === 'TEXTAREA') {
-        if (target.selectionStart === 0 && target.selectionEnd === target.value.length) {
-          e.preventDefault();
-          setSelectedBlockIds(new Set(page.blocks.map(b => b.id)));
-        }
-      } else {
-         e.preventDefault();
-         setSelectedBlockIds(new Set(page.blocks.map(b => b.id)));
-      }
-      return;
-    }
-
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (selectedBlockIds.size > 0) {
-        e.preventDefault();
-        deleteSelectedBlocks();
-        return;
-      }
-    }
 
     if (e.key === '/') {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -92,7 +68,6 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
     } else if (e.key === 'Escape') {
       setMenuPosition(null);
       setFocusMode(false);
-      setSelectedBlockIds(new Set());
     }
 
     if (e.key === 'ArrowUp' && index > 0) {
@@ -126,24 +101,6 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
     }
   };
 
-  const handleBlockDragStart = (id: string) => {
-    setDraggedBlockId(id);
-  };
-
-  const handleBlockDrop = (targetId: string) => {
-    if (!draggedBlockId || draggedBlockId === targetId) return;
-    
-    const newBlocks = [...page.blocks];
-    const sourceIndex = newBlocks.findIndex(b => b.id === draggedBlockId);
-    const targetIndex = newBlocks.findIndex(b => b.id === targetId);
-    
-    const [removed] = newBlocks.splice(sourceIndex, 1);
-    newBlocks.splice(targetIndex, 0, removed);
-    
-    updateBlocks(newBlocks);
-    setDraggedBlockId(null);
-  };
-
   const handleCommandSelect = (type: string) => {
     if (!focusedBlockId) return;
 
@@ -157,30 +114,15 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
         return { ...b, id, lastEditedAt: Date.now() };
       });
 
-      const cleanBlocks = page.blocks.map(b => {
-         if (b.id === focusedBlockId && b.content.includes('/')) {
-           return { ...b, content: b.content.split('/')[0].trim() };
-         }
-         return b;
-      });
-      const index = cleanBlocks.findIndex(b => b.id === focusedBlockId);
-      const newBlocks = [...cleanBlocks];
+      const index = page.blocks.findIndex(b => b.id === focusedBlockId);
+      const newBlocks = [...page.blocks];
       newBlocks.splice(index + 1, 0, ...templateBlocks);
       updateBlocks(newBlocks);
       setMenuPosition(null);
       return;
     }
 
-    let bType: BlockType = 'text';
-    let langMetadata: any = undefined;
-
-    if (type.startsWith('code:')) {
-      bType = 'code';
-      langMetadata = { language: type.split(':')[1] };
-    } else {
-      bType = type as BlockType;
-    }
-
+    let bType: BlockType = type.startsWith('code:') ? 'code' : (type as BlockType);
     let initialContent = '';
     if (bType === 'kanban') initialContent = JSON.stringify({ columns: [{ id: 'c1', title: 'To Do', cards: [] }, { id: 'c2', title: 'Done', cards: [] }] } as KanbanData);
     if (bType === 'database') initialContent = JSON.stringify({ columns: [{ id: 'c1', title: 'Item', type: 'text' }], rows: [] } as DatabaseData);
@@ -191,13 +133,11 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
 
     const newBlocks = page.blocks.map(b => {
       if (b.id === focusedBlockId) {
-        const cleanContent = b.content.split('/')[0].trim();
         return { 
           ...b, 
           type: bType, 
-          content: initialContent || cleanContent, 
-          lastEditedAt: Date.now(), 
-          metadata: langMetadata 
+          content: initialContent || b.content, 
+          lastEditedAt: Date.now()
         };
       }
       return b;
@@ -214,29 +154,38 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
       
       <div className="fixed top-0 left-0 right-0 h-0.5 bg-zinc-50 dark:bg-zinc-900 z-50 lg:ml-72 pointer-events-none">
         <div 
-          className={`h-full transition-all duration-1000 ease-out ${complexity > 30 ? 'bg-orange-500' : 'bg-zinc-900/10 dark:bg-zinc-100/10'}`} 
+          className={`h-full transition-all duration-1000 ease-out bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]`} 
           style={{ width: `${complexityWidth}%` }}
         />
       </div>
 
-      <div className="mb-16 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="mb-16 space-y-8">
+        <div className="flex items-center justify-between gap-6">
           <input
             value={page.title}
             onChange={(e) => onUpdate({ ...page, title: e.target.value })}
             placeholder="Untitled Context"
-            className="w-full text-4xl font-black bg-transparent border-none focus:ring-0 placeholder-zinc-200 dark:placeholder-zinc-800 tracking-tighter text-zinc-900 dark:text-zinc-50"
+            className="w-full text-4xl font-black bg-transparent border-none focus:ring-0 placeholder-zinc-100 dark:placeholder-zinc-800 tracking-tighter text-zinc-900 dark:text-zinc-50"
           />
-          <button 
-            onClick={() => setFocusMode(!focusMode)}
-            className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border shrink-0 ${focusMode ? 'bg-black dark:bg-zinc-100 border-black dark:border-zinc-100 text-white dark:text-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-300 dark:text-zinc-600 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
-          >
-            {focusMode ? 'Focus On' : 'Focus Mode'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={toggleDarkMode}
+              className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all hover:scale-105"
+              title="Toggle Theme"
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+            <button 
+              onClick={() => setFocusMode(!focusMode)}
+              className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border shrink-0 ${focusMode ? 'bg-zinc-900 dark:bg-white border-zinc-900 dark:border-white text-white dark:text-black shadow-2xl' : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-300 dark:text-zinc-600 hover:text-cyan-500 hover:border-cyan-500/30'}`}
+            >
+              {focusMode ? 'Focus On' : 'Focus Mode'}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {page.blocks.map((block) => (
           <BlockItem
             key={block.id}
@@ -260,8 +209,17 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
               const newBlocks = page.blocks.filter(b => b.id !== block.id);
               updateBlocks(newBlocks.length > 0 ? newBlocks : [{ id: 'init', type: 'text', content: '', lastEditedAt: Date.now() }]);
             }}
-            onDragStart={() => handleBlockDragStart(block.id)}
-            onDrop={() => handleBlockDrop(block.id)}
+            onDragStart={() => setDraggedBlockId(block.id)}
+            onDrop={() => {
+              if (!draggedBlockId) return;
+              const newBlocks = [...page.blocks];
+              const s = newBlocks.findIndex(b => b.id === draggedBlockId);
+              const t = newBlocks.findIndex(b => b.id === block.id);
+              const [r] = newBlocks.splice(s, 1);
+              newBlocks.splice(t, 0, r);
+              updateBlocks(newBlocks);
+              setDraggedBlockId(null);
+            }}
           />
         ))}
       </div>
@@ -276,12 +234,20 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
 
       {!focusMode && (
         <div 
-          className="h-32 mt-12 flex items-center justify-center text-zinc-200 dark:text-zinc-800 text-[10px] font-black uppercase tracking-[0.25em] transition-opacity cursor-text hover:opacity-100 opacity-0"
+          className="h-32 mt-16 flex items-center justify-center text-zinc-200 dark:text-zinc-800 text-[10px] font-black uppercase tracking-[0.3em] transition-opacity cursor-text hover:opacity-100 opacity-0 group"
           onClick={() => addBlock(page.blocks[page.blocks.length - 1]?.id || null)}
         >
-          Click to start a new thought
+          <span className="group-hover:text-cyan-500 transition-colors">Initiate Expansion</span>
         </div>
       )}
+
+      <GeminiAssistant 
+        page={page} 
+        onInsertBlocks={(blocks) => {
+          const newBlocks = [...page.blocks, ...blocks];
+          updateBlocks(newBlocks);
+        }} 
+      />
     </div>
   );
 };

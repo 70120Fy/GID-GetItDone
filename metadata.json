@@ -1,5 +1,7 @@
 {
-  "name": "GID",
-  "description": "A local-first, block-based productivity tool focused on speed and simplicity. 100% offline, no accounts, just your notes.",
-  "requestFramePermissions": []
+  "name": "GID | Local Intelligence",
+  "description": "Premium local-first context engine and productivity workspace with voice input, task scheduling, and intelligent synapse mapping.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

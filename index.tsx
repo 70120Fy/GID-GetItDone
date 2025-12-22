@@ -14,20 +14,3 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
-// Register service worker only in production build to avoid SW issues in dev
-if ((import.meta as any).env?.PROD) {
-  import('virtual:pwa-register').then(({ registerSW }) => {
-    const updateSW = registerSW({
-      onNeedRefresh() {
-        window.dispatchEvent(new CustomEvent('sw-update'));
-      },
-      onOfflineReady() {
-        window.dispatchEvent(new CustomEvent('sw-offline-ready'));
-      }
-    });
-    (window as any).__updatePWA = updateSW;
-  }).catch(err => {
-    console.warn('PWA register failed', err);
-  });
-}
