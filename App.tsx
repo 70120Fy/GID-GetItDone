@@ -69,11 +69,7 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const recordState = useCallback((newPages: Page[]) => {
-<<<<<<< qwen-code-f2b43b07-7671-4f49-a293-d1224f3bcbb5
     setHistory(prev => [...prev.slice(-49), newPages]); // Keep last 50 states
-=======
-    setHistory(prev => [...prev.slice(-49), pages]);
->>>>>>> main
     setRedoStack([]);
     setPages(newPages);
   }, []);

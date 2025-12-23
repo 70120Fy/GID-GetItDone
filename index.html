@@ -8,51 +8,12 @@
     <meta name="theme-color" content="#4A90E2">
     <link rel="manifest" href="manifest.json">
     <title>GID</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <script>
       // Polyfill process.env for browser environment
       window.process = { env: { API_KEY: "" } };
-      
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              calmBlue: {
-                DEFAULT: '#4A90E2',
-                light: '#79B1F2',
-                dark: '#357ABD',
-              },
-              cyanAccent: {
-                DEFAULT: '#00BFA6',
-                light: '#33CCB8',
-                dark: '#009985',
-              }
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            animation: {
-              'shimmer': 'shimmer 2s linear infinite',
-              'sparkle': 'sparkle 1.5s ease-in-out infinite',
-            },
-            keyframes: {
-              shimmer: {
-                '0%': { backgroundPosition: '-200% 0' },
-                '100%': { backgroundPosition: '200% 0' },
-              },
-              sparkle: {
-                '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-                '50%': { opacity: 0.8, transform: 'scale(1.05)' },
-              }
-            }
-          },
-        },
-      }
     </script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono&display=swap');
       body {
