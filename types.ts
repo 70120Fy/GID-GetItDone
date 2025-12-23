@@ -9,10 +9,19 @@ export type BlockType =
   | 'database' 
   | 'mindmap'
   | 'project_os'
-  | 'callout';
+  | 'callout'
+  | 'embed'; // Added embed for Synapse Live Links
 
 export type ScheduleType = 'today' | 'week' | 'someday' | null;
 export type ImportanceLevel = 'High' | 'Medium' | 'Low' | 'Extension';
+
+export interface LinkMetadata {
+  sourcePageId: string;
+  sourceBlockId?: string;
+  type: 'live' | 'snapshot';
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface SubTask {
   id: string;
@@ -24,9 +33,9 @@ export interface TaskMetadata {
   importance: ImportanceLevel;
   status: string;
   subTasks: SubTask[];
-  deadline?: number; // timestamp
-  startDate?: number; // timestamp
-  reminderSent?: Record<string, boolean>; // track which reminders were sent
+  deadline?: number; 
+  startDate?: number; 
+  reminderSent?: Record<string, boolean>;
 }
 
 export interface Block {
@@ -37,6 +46,7 @@ export interface Block {
   schedule?: ScheduleType;
   lastEditedAt?: number; 
   metadata?: any; 
+  linkMetadata?: LinkMetadata; // Added for Synapse system
 }
 
 export interface Page {
@@ -49,6 +59,8 @@ export interface Page {
 export interface AppState {
   pages: Page[];
   activePageId: string | null;
+  secondaryPageId: string | null; // Added for Split View
+  isSplitPinned: boolean;
 }
 
 export interface KanbanData {
@@ -71,5 +83,5 @@ export interface MindMapNode {
   x?: number;
   y?: number;
   isExpanded?: boolean;
-  taskId?: string; // Link back to project task
+  taskId?: string;
 }
