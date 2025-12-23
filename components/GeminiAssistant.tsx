@@ -52,7 +52,7 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ page, onInsert
     return null;
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI(process.env.GEMINI_API_KEY || '');
 
   const toggleListening = () => {
     if (isListening) {
