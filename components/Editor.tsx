@@ -1,33 +1,37 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { Page, Block, BlockType, KanbanData, DatabaseData, MindMapNode } from '../types';
+
+import React, { useState, useCallback, useMemo } from 'react';
+import { Page, Block, BlockType } from '../types';
 import { BlockItem } from './BlockItem';
 import { CommandMenu } from './CommandMenu';
 import { TEMPLATES } from '../utils/templates';
 import { GeminiAssistant } from './GeminiAssistant';
+import { LinkSelector } from './LinkSelector';
 
 interface EditorProps {
   page: Page;
+  allPages: Page[];
   onUpdate: (updatedPage: Page) => void;
+  onOpenSplit?: (id: string) => void;
+  onJumpTo?: (id: string) => void;
+  isSecondary?: boolean;
 }
 
-export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
+export const Editor: React.FC<EditorProps> = ({ page, allPages, onUpdate, onOpenSplit, onJumpTo, isSecondary }) => {
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [focusMode, setFocusMode] = useState(false);
-  const [newMindMapId, setNewMindMapId] = useState<string | null>(null);
+  const [showLinkSelector, setShowLinkSelector] = useState<{ blockId?: string } | null>(null);
+  const [showLinkedPanel, setShowLinkedPanel] = useState(false);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Quick dark mode toggle for editor header
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('gid_theme') === 'dark');
-  
-  const toggleDarkMode = () => {
-    const newVal = !darkMode;
-    setDarkMode(newVal);
-    document.documentElement.classList.toggle('dark', newVal);
-    localStorage.setItem('gid_theme', newVal ? 'dark' : 'light');
-    window.dispatchEvent(new Event('storage'));
-  };
+  const [focusMode, setFocusMode] = useState(false);
+
+  // ACTION: LinkedContextsPanel()
+  const inboundLinks = useMemo(() => {
+    return allPages.filter(p => p.id !== page.id && p.blocks.some(b => b.linkMetadata?.sourcePageId === page.id));
+  }, [allPages, page.id]);
+
+  const outboundLinks = useMemo(() => {
+    return allPages.filter(p => page.blocks.some(b => b.linkMetadata?.sourcePageId === p.id));
+  }, [allPages, page.blocks]);
 
   const updateBlocks = useCallback((blocks: Block[]) => {
     onUpdate({ ...page, blocks, updatedAt: Date.now() });
@@ -43,87 +47,7 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
     setFocusedBlockId(newId);
   }, [page.blocks, updateBlocks]);
 
-  const handleContainerClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('editor-inner-container')) {
-      const lastBlock = page.blocks[page.blocks.length - 1];
-      addBlock(lastBlock?.id || null);
-    }
-  };
-
-  const exportToMarkdown = () => {
-    let md = `# ${page.title || 'Untitled Context'}\n\n`;
-
-    page.blocks.forEach(block => {
-      switch (block.type) {
-        case 'heading':
-          md += `## ${block.content}\n\n`;
-          break;
-        case 'todo':
-          md += `- [${block.checked ? 'x' : ' '}] ${block.content}${block.schedule ? ` (${block.schedule})` : ''}\n`;
-          break;
-        case 'callout':
-          md += `> [!INFO]\n> ${block.content.replace(/\n/g, '\n> ')}\n\n`;
-          break;
-        case 'divider':
-          md += `---\n\n`;
-          break;
-        case 'code':
-          const lang = block.metadata?.language || '';
-          md += `\`\`\`${lang}\n${block.content}\n\`\`\`\n\n`;
-          break;
-        case 'kanban':
-          try {
-            const data: KanbanData = JSON.parse(block.content);
-            md += `### Kanban: Board\n`;
-            data.columns.forEach(col => {
-              md += `#### ${col.title}\n`;
-              col.cards.forEach(card => md += `- [${card.checked ? 'x' : ' '}] ${card.content}\n`);
-              md += `\n`;
-            });
-          } catch (e) { md += `[Kanban Data Error]\n\n`; }
-          break;
-        case 'database':
-          try {
-            const data: DatabaseData = JSON.parse(block.content);
-            md += `| ${data.columns.map(c => c.title).join(' | ')} |\n`;
-            md += `| ${data.columns.map(() => '---').join(' | ')} |\n`;
-            data.rows.forEach(row => {
-              md += `| ${data.columns.map(col => {
-                const val = row[col.id];
-                return col.type === 'checkbox' ? (val ? '☑' : '☐') : val;
-              }).join(' | ')} |\n`;
-            });
-            md += `\n`;
-          } catch (e) { md += `[Database Data Error]\n\n`; }
-          break;
-        case 'mindmap':
-          md += `*Mind map exported as text list*\n`;
-          const walkMindMap = (node: MindMapNode, depth: number) => {
-            md += `${'  '.repeat(depth)}- ${node.text}\n`;
-            node.children.forEach(c => walkMindMap(c, depth + 1));
-          };
-          try { walkMindMap(JSON.parse(block.content), 0); } catch(e) {}
-          md += `\n`;
-          break;
-        default:
-          md += `${block.content}\n\n`;
-          break;
-      }
-    });
-
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(page.title || 'context').toLowerCase().replace(/\s+/g, '-')}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent, block: Block) => {
-    const index = page.blocks.findIndex(b => b.id === block.id);
     if (e.key === '/') {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       setMenuPosition({ top: rect.bottom + window.scrollY, left: Math.min(rect.left + window.scrollX, window.innerWidth - 260) });
@@ -133,13 +57,56 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
       addBlock(block.id);
     } else if (e.key === 'Backspace' && block.content === '' && page.blocks.length > 1) {
       e.preventDefault();
+      const index = page.blocks.findIndex(b => b.id === block.id);
       const prevBlock = page.blocks[index - 1];
       updateBlocks(page.blocks.filter(b => b.id !== block.id));
       if (prevBlock) setFocusedBlockId(prevBlock.id);
     }
   };
 
-  const handleCommandSelect = (type: string) => {
+  // ACTION: LinkTo() - Handle final selection
+  const handleLinkSelect = (targetPageId: string, targetBlockId?: string, type: 'live' | 'snapshot' = 'live') => {
+    const targetPage = allPages.find(p => p.id === targetPageId);
+    if (!targetPage) return;
+
+    if (showLinkSelector?.blockId) {
+      const sourceBlock = targetBlockId ? targetPage.blocks.find(b => b.id === targetBlockId) : null;
+      const content = sourceBlock ? sourceBlock.content : `Context Ref: ${targetPage.title}`;
+      
+      const newBlocks = page.blocks.map(b => b.id === showLinkSelector.blockId ? {
+        ...b,
+        content: type === 'snapshot' ? content : b.content,
+        type: type === 'live' ? 'embed' : b.type,
+        linkMetadata: {
+          sourcePageId: targetPageId,
+          sourceBlockId: targetBlockId,
+          type,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      } as Block : b);
+      updateBlocks(newBlocks);
+    } else {
+      const newId = Math.random().toString(36).substr(2, 9);
+      const newBlock: Block = {
+        id: newId,
+        type: type === 'live' ? 'embed' : 'text',
+        content: `Ref: ${targetPage.title}`,
+        linkMetadata: {
+          sourcePageId: targetPageId,
+          sourceBlockId: targetBlockId,
+          type,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        lastEditedAt: Date.now()
+      };
+      updateBlocks([...page.blocks, newBlock]);
+    }
+    setShowLinkSelector(null);
+  };
+
+  const handleCommandSelect = useCallback((type: string) => {
     if (!focusedBlockId) return;
     if (type.startsWith('tpl:')) {
       const template = TEMPLATES[type];
@@ -148,7 +115,6 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
       const tBlocks = template.blocks.map(b => ({ ...b, id: Math.random().toString(36).substr(2, 9) }));
       newBlocks.splice(index + 1, 0, ...tBlocks);
       updateBlocks(newBlocks);
-      setMenuPosition(null);
       return;
     }
 
@@ -160,51 +126,104 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
 
     const updated = page.blocks.map(b => b.id === focusedBlockId ? { ...b, type: bType, content } : b);
     updateBlocks(updated);
-    setMenuPosition(null);
-  };
+  }, [focusedBlockId, page.blocks, updateBlocks]);
 
   return (
     <div 
-      ref={editorContainerRef}
-      onClick={handleContainerClick}
-      className={`max-w-2xl mx-auto px-6 py-24 pb-[60vh] min-h-screen transition-all duration-700 cursor-text editor-inner-container ${focusMode ? 'bg-white dark:bg-zinc-950' : ''}`}
+      className={`min-h-full flex flex-col cursor-text pb-96 ${focusMode ? 'bg-white dark:bg-zinc-950' : ''}`}
+      onClick={(e) => {
+        // "Clicking with the mouse or finger to add a new writing area"
+        if (e.target === e.currentTarget) {
+          const lastBlock = page.blocks[page.blocks.length - 1];
+          if (lastBlock && lastBlock.content === '' && lastBlock.type === 'text') {
+            setFocusedBlockId(lastBlock.id);
+          } else {
+            addBlock(lastBlock?.id || null);
+          }
+        }
+      }}
     >
-      <div className="mb-16 space-y-8 pointer-events-auto">
-        <div className="flex items-center justify-between gap-6">
-          <input
-            value={page.title}
-            onChange={(e) => onUpdate({ ...page, title: e.target.value })}
-            placeholder="Draft Context"
-            className="w-full text-4xl font-black bg-transparent border-none focus:ring-0 placeholder-zinc-100 dark:placeholder-zinc-800 tracking-tighter text-zinc-900 dark:text-zinc-50"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <div className="max-w-2xl w-full mx-auto px-6 py-24 flex-1">
+        <div className="mb-12 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-8 cursor-default" onClick={e => e.stopPropagation()}>
+          <div className="flex flex-col gap-1 flex-1 pr-4">
+            <input
+              value={page.title}
+              onChange={(e) => onUpdate({ ...page, title: e.target.value })}
+              placeholder="Draft Context"
+              className="w-full text-4xl font-black bg-transparent border-none focus:ring-0 placeholder-zinc-100 dark:placeholder-zinc-800 tracking-tighter text-zinc-900 dark:text-zinc-50"
+            />
+            <div className="flex items-center gap-4 mt-3">
+              <button 
+                onClick={() => setShowLinkedPanel(!showLinkedPanel)}
+                className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all flex items-center gap-2 ${showLinkedPanel ? 'bg-cyan-500 text-white border-cyan-400' : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-400 border-zinc-100 dark:border-zinc-800 hover:text-cyan-500'}`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                Connections
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {!isSecondary && (
+              <button 
+                onClick={() => setShowLinkSelector({})} 
+                className="px-5 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl"
+              >
+                Link to...
+              </button>
+            )}
             <button 
-              onClick={exportToMarkdown}
-              className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all active:scale-95" 
-              title="Export as Markdown"
+              onClick={() => setFocusMode(!focusMode)} 
+              className={`p-3 rounded-2xl transition-all border ${focusMode ? 'bg-zinc-900 dark:bg-white text-white dark:text-black' : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-400 border-zinc-100 dark:border-zinc-800'}`}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            </button>
-            <button onClick={toggleDarkMode} className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all active:scale-95" title="Quick Theme Toggle">
-              {darkMode ? '☀️' : '🌙'}
-            </button>
-            <button onClick={() => setFocusMode(!focusMode)} className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${focusMode ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white shadow-xl' : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-300 dark:text-zinc-600 hover:text-cyan-500'}`}>
-              {focusMode ? 'Focus Active' : 'Focus Mode'}
+              {focusMode ? '☀️' : '🌙'}
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-4 pointer-events-auto">
-        {page.blocks.map((block) => (
-          <div key={block.id} onClick={(e) => e.stopPropagation()}>
+        {/* LinkedContextsPanel() */}
+        {showLinkedPanel && (
+          <div className="mb-12 p-8 bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] animate-in fade-in slide-in-from-top-4 duration-300 cursor-default" onClick={e => e.stopPropagation()}>
+            <div className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] mb-6 flex justify-between items-center">
+              <span>Synapse Map</span>
+              <button onClick={() => setShowLinkedPanel(false)} className="text-zinc-300 hover:text-zinc-500 transition-colors">Close</button>
+            </div>
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <span className="text-[8px] font-black text-cyan-500 uppercase tracking-widest">Outbound Connections</span>
+                {outboundLinks.length > 0 ? outboundLinks.map(p => (
+                  <div key={p.id} className="flex flex-col gap-1 bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center justify-between group">
+                      <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 truncate pr-2">{p.title || 'Untitled'}</span>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => onOpenSplit?.(p.id)} className="text-[9px] font-black text-cyan-500 uppercase px-2 py-1 hover:bg-cyan-500/10 rounded-lg">Split</button>
+                        <button onClick={() => onJumpTo?.(p.id)} className="text-[9px] font-black text-zinc-400 uppercase px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Jump</button>
+                      </div>
+                    </div>
+                  </div>
+                )) : <span className="text-[10px] text-zinc-300 italic">No links out</span>}
+              </div>
+              <div className="space-y-4 border-l border-zinc-100 dark:border-zinc-800 pl-8">
+                <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">Inbound References</span>
+                {inboundLinks.length > 0 ? inboundLinks.map(p => (
+                  <div key={p.id} className="flex items-center justify-between group bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                    <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 truncate pr-2">{p.title || 'Untitled'}</span>
+                    <button onClick={() => onOpenSplit?.(p.id)} className="opacity-0 group-hover:opacity-100 text-[9px] font-black text-cyan-500 uppercase px-2 py-1 hover:bg-cyan-500/10 rounded-lg">View</button>
+                  </div>
+                )) : <span className="text-[10px] text-zinc-300 italic">No incoming links</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4 cursor-default" onClick={e => e.stopPropagation()}>
+          {page.blocks.map((block) => (
             <BlockItem
+              key={block.id}
               block={block}
               isFocused={focusedBlockId === block.id}
-              isRecent={false}
-              anyBlockFocused={focusedBlockId !== null || focusMode}
-              autoExpand={newMindMapId === block.id}
+              allPages={allPages}
+              anyBlockFocused={focusedBlockId !== null}
               onFocus={() => setFocusedBlockId(block.id)}
               onUpdate={(u) => updateBlocks(page.blocks.map(b => b.id === block.id ? { ...b, ...u } : b))}
               onKeyDown={(e) => handleKeyDown(e, block)}
@@ -215,20 +234,32 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
                 const newBlocks = [...page.blocks];
                 const s = newBlocks.findIndex(b => b.id === draggedBlockId);
                 const t = newBlocks.findIndex(b => b.id === block.id);
-                const [r] = newBlocks.splice(s, 1);
-                newBlocks.splice(t, 0, r);
-                updateBlocks(newBlocks);
+                if (s !== -1 && t !== -1) {
+                    const [r] = newBlocks.splice(s, 1);
+                    newBlocks.splice(t, 0, r);
+                    updateBlocks(newBlocks);
+                }
                 setDraggedBlockId(null);
               }}
+              onLinkTo={() => setShowLinkSelector({ blockId: block.id })}
+              onJumpToSource={(pid) => onJumpTo?.(pid)}
             />
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {menuPosition && <div onClick={(e) => e.stopPropagation()}><CommandMenu position={menuPosition} onSelect={handleCommandSelect} onClose={() => setMenuPosition(null)} /></div>}
-      
-      <div onClick={(e) => e.stopPropagation()}>
-        <GeminiAssistant page={page} onInsertBlocks={(bs) => updateBlocks([...page.blocks, ...bs])} />
+        {menuPosition && <div onClick={e => e.stopPropagation()}><CommandMenu position={menuPosition} onSelect={(type) => { handleCommandSelect(type); setMenuPosition(null); }} onClose={() => setMenuPosition(null)} /></div>}
+
+        {showLinkSelector && (
+          <LinkSelector 
+            pages={allPages}
+            onSelect={handleLinkSelect}
+            onClose={() => setShowLinkSelector(null)}
+          />
+        )}
+        
+        {!isSecondary && (
+          <GeminiAssistant page={page} onInsertBlocks={(bs) => updateBlocks([...page.blocks, ...bs])} />
+        )}
       </div>
     </div>
   );

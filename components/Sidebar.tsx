@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Page } from '../types';
 import { TEMPLATES } from '../utils/templates';
@@ -43,7 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const displayedTemplates = showAllTemplates ? Object.entries(TEMPLATES) : Object.entries(TEMPLATES).slice(0, 6);
 
   const isPageUnused = (page: Page) => {
-    // A page is unused if it has no title and either no blocks or only one empty text block
     const hasNoTitle = !page.title || page.title.trim() === '';
     const hasNoContent = page.blocks.length === 0 || 
       (page.blocks.length === 1 && page.blocks[0].content.trim() === '' && page.blocks[0].type === 'text');
@@ -92,11 +92,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="space-y-2">
                 {pages.map((page) => {
                   const unused = isPageUnused(page);
-                  const isActive = activePageId === page.id;
                   return (
                     <div 
                       key={page.id} 
-                      className={`group flex items-center justify-between py-4 px-5 rounded-3xl cursor-pointer transition-all border ${isActive ? 'bg-zinc-900 text-white dark:bg-white dark:text-black border-zinc-900 dark:border-white shadow-xl shadow-cyan-500/5' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/50 text-zinc-500 border-transparent'}`} 
+                      className={`group flex items-center justify-between py-4 px-5 rounded-3xl cursor-pointer transition-all border ${activePageId === page.id ? 'bg-zinc-900 text-white dark:bg-white dark:text-black border-zinc-900 dark:border-white shadow-xl shadow-cyan-500/5' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/50 text-zinc-500 border-transparent'}`} 
                       onClick={() => { onSelectPage(page.id); if (window.innerWidth < 1024) onClose(); }}
                     >
                       <div className="flex flex-col min-w-0 pr-2">
@@ -110,14 +109,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={(e) => { 
                           e.stopPropagation();
                           e.preventDefault();
-                          if (window.confirm('Delete this context permanently?')) {
-                            onDeletePage(page.id);
-                          }
+                          onDeletePage(page.id);
                         }} 
-                        className={`p-2 rounded-xl transition-all flex-shrink-0 border-2 ${
-                          isActive 
-                            ? 'text-red-500 border-cyan-400 bg-cyan-400/10 shadow-[0_0_12px_rgba(34,211,238,0.4)]' 
-                            : 'text-zinc-300 border-transparent hover:border-red-500/50 hover:text-red-500 hover:bg-red-500/5'
+                        className={`p-2 rounded-xl transition-all flex-shrink-0 ${
+                          activePageId === page.id 
+                            ? 'text-red-400 hover:bg-red-500/20 hover:text-red-500' 
+                            : 'text-zinc-300 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100'
                         }`}
                         title="Delete History"
                       >
