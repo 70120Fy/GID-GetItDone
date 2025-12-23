@@ -8,9 +8,26 @@ export type BlockType =
   | 'kanban' 
   | 'database' 
   | 'mindmap'
+  | 'project_os'
   | 'callout';
 
 export type ScheduleType = 'today' | 'week' | 'someday' | null;
+export type ImportanceLevel = 'High' | 'Medium' | 'Low' | 'Extension';
+
+export interface SubTask {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+export interface TaskMetadata {
+  importance: ImportanceLevel;
+  status: string;
+  subTasks: SubTask[];
+  deadline?: number; // timestamp
+  startDate?: number; // timestamp
+  reminderSent?: Record<string, boolean>; // track which reminders were sent
+}
 
 export interface Block {
   id: string;
@@ -51,6 +68,8 @@ export interface MindMapNode {
   id: string;
   text: string;
   children: MindMapNode[];
-  x?: number; // X offset from parent or center
-  y?: number; // Y offset from parent or center
+  x?: number;
+  y?: number;
+  isExpanded?: boolean;
+  taskId?: string; // Link back to project task
 }

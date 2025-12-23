@@ -1,9 +1,11 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Block, BlockType, ScheduleType } from '../types';
 import { KanbanBlock } from './blocks/KanbanBlock';
 import { DatabaseBlock } from './blocks/DatabaseBlock';
 import { MindMapBlock } from './blocks/MindMapBlock';
 import { CodeBlock } from './blocks/CodeBlock';
+import { ProjectManagementBlock } from './blocks/ProjectManagementBlock';
 
 interface BlockItemProps {
   block: Block;
@@ -177,6 +179,12 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             <MindMapBlock root={JSON.parse(block.content)} autoExpand={autoExpand} onChange={(r) => onUpdate({ content: JSON.stringify(r) })} />
           </div>
         );
+      case 'project_os':
+        return (
+          <div onFocus={onFocus} tabIndex={0} className="outline-none py-4">
+            <ProjectManagementBlock content={block.content} onChange={(c) => onUpdate({ content: c })} />
+          </div>
+        );
       default:
         return (
           <textarea
@@ -202,15 +210,15 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
     >
-      <div className="absolute -left-10 top-1/2 -translate-y-1/2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity hidden lg:flex">
+      <div className={`absolute -left-10 top-1/2 -translate-y-1/2 flex items-center transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2'}`}>
         <button 
           draggable
           onDragStart={onDragStart}
-          className="p-1.5 text-zinc-300 hover:text-cyan-500 cursor-grab active:cursor-grabbing transition-colors"
+          className="p-1.5 text-zinc-300 hover:text-cyan-500 cursor-grab active:cursor-grabbing transition-colors hidden lg:block"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8h16M4 16h16" /></svg>
         </button>
-        <button onClick={onDelete} className="p-1.5 text-zinc-300 hover:text-red-400 ml-1 transition-colors">
+        <button onClick={onDelete} className="p-1.5 text-zinc-300 hover:text-red-400 ml-1 transition-colors" title="Delete Block">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>

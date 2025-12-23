@@ -19,6 +19,18 @@ const App: React.FC = () => {
     return localStorage.getItem('gid_theme') === 'dark';
   });
 
+  const createNewPage = useCallback((title: string = '', blocks?: Block[]): Page => {
+    const id = Math.random().toString(36).substr(2, 9);
+    return {
+      id,
+      title,
+      blocks: blocks || [
+        { id: Math.random().toString(36).substr(2, 9), type: 'text', content: '' }
+      ],
+      updatedAt: Date.now()
+    };
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       const loadedPages = await loadPages();
@@ -36,7 +48,7 @@ const App: React.FC = () => {
       setIsLoading(false);
     };
     init();
-  }, []);
+  }, [createNewPage]);
 
   useEffect(() => {
     if (!isLoading && pages.length > 0) {
@@ -53,18 +65,6 @@ const App: React.FC = () => {
       localStorage.setItem('gid_theme', 'light');
     }
   }, [darkMode]);
-
-  const createNewPage = (title: string = '', blocks?: Block[]): Page => {
-    const id = Math.random().toString(36).substr(2, 9);
-    return {
-      id,
-      title,
-      blocks: blocks || [
-        { id: Math.random().toString(36).substr(2, 9), type: 'text', content: '' }
-      ],
-      updatedAt: Date.now()
-    };
-  };
 
   const recordState = useCallback((newPages: Page[]) => {
     setHistory(prev => [...prev.slice(-49), pages]); // Keep last 50 states
@@ -124,11 +124,23 @@ const App: React.FC = () => {
   };
 
   const handleDeletePage = (id: string) => {
-    const newPages = pages.filter(p => p.id !== id);
-    recordState(newPages);
-    if (activePageId === id) {
-      setActivePageId(newPages.length > 0 ? newPages[0].id : null);
-    }
+    setPages(prevPages => {
+      const newPages = prevPages.filter(p => p.id !== id);
+      const finalPages = newPages.length === 0 ? [createNewPage('Workspace')] : newPages;
+      
+      // Manually manage history for the deletion event to ensure atomic update
+      setHistory(h => [...h.slice(-49), prevPages]);
+      setRedoStack([]);
+
+      // If the page being deleted is currently active, switch to another one
+      if (activePageId === id) {
+        // Find next available ID
+        const nextId = finalPages[0].id;
+        setActivePageId(nextId);
+      }
+      
+      return finalPages;
+    });
   };
 
   const handleUpdatePage = (updatedPage: Page) => {

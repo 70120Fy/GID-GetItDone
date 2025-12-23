@@ -1,6 +1,51 @@
+
 import { Block, KanbanData, DatabaseData, MindMapNode } from '../types';
 
 export const TEMPLATES: Record<string, { title: string, icon: string, blocks: Block[] }> = {
+  'tpl:project_mgmt': {
+    title: 'Project Management',
+    icon: '🛰️',
+    blocks: [
+      { id: 'p1', type: 'heading', content: 'Central Project OS' },
+      { id: 'p2', type: 'callout', content: 'Goal: Optimize context engineering workflow.' },
+      { id: 'p3', type: 'project_os', content: JSON.stringify({
+        tasks: [
+          { 
+            id: 't1', 
+            title: 'Initial Concept Draft', 
+            metadata: { 
+              importance: 'High', 
+              status: 'In Progress', 
+              deadline: Date.now() + 172800000,
+              subTasks: [
+                { id: 'st1', text: 'Research market needs', checked: true },
+                { id: 'st2', text: 'Draft technical spec', checked: false }
+              ]
+            } 
+          },
+          { 
+            id: 't2', 
+            title: 'Future Extension A', 
+            metadata: { 
+              importance: 'Extension', 
+              status: 'Backlog', 
+              subTasks: []
+            } 
+          }
+        ],
+        mindMap: {
+          id: 'root',
+          text: 'Master Plan',
+          x: 2000,
+          y: 2000,
+          children: [
+            { id: 'node1', text: 'Concept Phase', x: 2200, y: 1950, children: [] },
+            { id: 'node2', text: 'Build Phase', x: 2200, y: 2050, children: [] }
+          ]
+        }
+      }) }
+    ]
+  },
   'tpl:daily': {
     title: 'Daily Planner',
     icon: '☀️',

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BlockType } from '../types';
 import { TEMPLATES } from '../utils/templates';
@@ -14,6 +15,7 @@ const COMMANDS: { type: string; label: string; icon: string; category: string }[
   { type: 'todo', label: 'Action Item', icon: '✓', category: 'Basic' },
   { type: 'callout', label: 'Insight', icon: '💡', category: 'Basic' },
   { type: 'divider', label: 'Divider', icon: '—', category: 'Basic' },
+  { type: 'project_os', label: 'Project OS', icon: '🛰️', category: 'Advanced Systems' },
   { type: 'kanban', label: 'Blank Board', icon: '▥', category: 'Systems' },
   { type: 'database', label: 'Blank Table', icon: '▦', category: 'Systems' },
   { type: 'tpl:kanban_board', label: 'Workflow Master', icon: '📊', category: 'Featured Templates' },
