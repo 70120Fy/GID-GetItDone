@@ -4,7 +4,7 @@ import { Page, Block, BlockType } from '../types';
 import { BlockItem } from './BlockItem';
 import { CommandMenu } from './CommandMenu';
 import { TEMPLATES } from '../utils/templates';
-import { GeminiAssistant } from './GeminiAssistant';
+
 import { LinkSelector } from './LinkSelector';
 
 interface EditorProps {
@@ -257,9 +257,7 @@ export const Editor: React.FC<EditorProps> = ({ page, allPages, onUpdate, onOpen
           />
         )}
         
-        {!isSecondary && (
-          <GeminiAssistant page={page} onInsertBlocks={(bs) => updateBlocks([...page.blocks, ...bs])} />
-        )}
+
       </div>
     </div>
   );
