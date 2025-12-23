@@ -67,10 +67,10 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const recordState = useCallback((newPages: Page[]) => {
-    setHistory(prev => [...prev.slice(-49), pages]); // Keep last 50 states
+    setHistory(prev => [...prev.slice(-49), newPages]); // Keep last 50 states
     setRedoStack([]);
     setPages(newPages);
-  }, [pages]);
+  }, []);
 
   const handleUndo = useCallback(() => {
     if (history.length === 0) return;
@@ -145,7 +145,7 @@ const App: React.FC = () => {
 
   const handleUpdatePage = (updatedPage: Page) => {
     const newPages = pages.map(p => p.id === updatedPage.id ? updatedPage : p);
-    setPages(newPages); // Direct update for real-time responsiveness, but debounced record for undo
+    recordState(newPages);
   };
 
   const activePage = pages.find(p => p.id === activePageId);
@@ -192,6 +192,10 @@ const App: React.FC = () => {
             key={activePage.id}
             page={activePage}
             onUpdate={handleUpdatePage}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={history.length > 0}
+            canRedo={redoStack.length > 0}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">

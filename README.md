@@ -17,18 +17,27 @@ GID is an AI-powered productivity application that combines note-taking, task ma
 - **Undo/Redo Functionality**: Never lose your work with comprehensive history tracking
 - **Template System**: Start quickly with pre-built templates
 - **Structured Data**: Create databases and kanban boards for project management
+- **Focus Mode**: Minimize distractions with focused writing mode
+- **Export to Markdown**: Export your pages as markdown files
+- **Drag and Drop**: Reorganize blocks with intuitive drag and drop
+- **Block Deletion**: Remove unwanted blocks with delete functionality
+- **Subtasks**: Break down tasks into smaller subtasks
+- **Task Scheduling**: Schedule to-do items for today, this week, or someday
+- **Offline Detection**: Automatically detects online/offline status for AI features
+- **Project OS**: Advanced project management system with tasks and mind maps
 
 ## Block Types
 
 - Text and Headings
-- To-do lists with subtasks
-- Code blocks
+- To-do lists with subtasks and scheduling
+- Code blocks with syntax highlighting
 - Dividers
 - Kanban boards
 - Databases with multiple column types
 - Mind maps
-- Project OS (Project management system)
+- Project OS (Advanced project management system)
 - Callout blocks
+- Divider blocks
 
 ## AI Capabilities
 
@@ -37,11 +46,13 @@ GID is an AI-powered productivity application that combines note-taking, task ma
 - **Expansion Flow**: Suggest next steps and related content
 - **Database Creation**: Generate structured data tables from natural language descriptions
 - **Voice Commands**: Speak your ideas and have them converted to text
+- **Context Synthesis**: Combine multiple blocks of content into cohesive summaries
+- **Structured Table Generation**: Create database structures from natural language
 
 ## Prerequisites
 
 - Node.js
-- A Google Gemini API key
+- A Google Gemini API key (required for AI features)
 
 ## Run Locally
 
@@ -69,6 +80,14 @@ GID is an AI-powered productivity application that combines note-taking, task ma
 - Use Ctrl+Z/Ctrl+Y (or Cmd+Z/Cmd+Y) for undo/redo functionality
 - Toggle between light and dark mode from the sidebar
 - Use voice input to speak your thoughts directly into the app
+- Activate focus mode to minimize distractions while writing
+- Export your pages as markdown files using the export button
+- Drag and drop blocks to reorganize your content
+- Delete blocks using the delete button that appears when hovering over a block
+- Schedule to-do items for specific timeframes (today, this week, someday)
+- Add subtasks to break down complex tasks
+- Use the Project OS for advanced project management
+- Access various templates from the sidebar for quick starts
 
 ## Architecture
 
@@ -76,7 +95,9 @@ GID is an AI-powered productivity application that combines note-taking, task ma
 - **Build Tool**: Vite
 - **AI Integration**: Google GenAI SDK
 - **Storage**: Local browser storage
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS via CDN
+- **State Management**: React hooks
+- **Offline Support**: Service worker
 
 ## License
 

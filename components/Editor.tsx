@@ -8,9 +8,13 @@ import { GeminiAssistant } from './GeminiAssistant';
 interface EditorProps {
   page: Page;
   onUpdate: (updatedPage: Page) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
-export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
+export const Editor: React.FC<EditorProps> = ({ page, onUpdate, onUndo, onRedo, canUndo = false, canRedo = false }) => {
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
@@ -179,6 +183,22 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdate }) => {
             onClick={(e) => e.stopPropagation()}
           />
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={onUndo}
+              disabled={!canUndo}
+              className={`p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all active:scale-95 ${!canUndo ? 'opacity-40 cursor-not-allowed' : ''}`} 
+              title="Undo (Ctrl+Z)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <button 
+              onClick={onRedo}
+              disabled={!canRedo}
+              className={`p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all active:scale-95 ${!canRedo ? 'opacity-40 cursor-not-allowed' : ''}`} 
+              title="Redo (Ctrl+Y)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </button>
             <button 
               onClick={exportToMarkdown}
               className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-400 hover:text-cyan-500 transition-all active:scale-95" 
