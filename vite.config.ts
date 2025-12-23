@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist',
         sourcemap: false, // Disable sourcemaps to reduce build size for Vercel
         minify: 'esbuild', // Use esbuild for faster minification
+      },
+      // Prevent Vercel from serving service worker as HTML
+      ssr: {
+        noExternal: [] // No external packages needed for SSR
       }
     };
 });
